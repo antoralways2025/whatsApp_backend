@@ -15,12 +15,11 @@ const server = http.createServer(app);
 connectDB();
 
 /* CORS FOR EXPRESS */
-
 app.use(
   cors({
     origin: [
       "http://localhost:3000",          // local React
-      "https://neavatalk.netlify.app" // deployed frontend
+      "https://neavatalk.netlify.app"   // deployed frontend
     ],
     credentials: true
   })
@@ -33,7 +32,6 @@ app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
 
 /* SOCKET.IO */
-
 const io = new Server(server, {
   cors: {
     origin: [
@@ -45,68 +43,66 @@ const io = new Server(server, {
   }
 });
 
-let onlineUsers = {};
+let onlineUsers = {}; // { userId: socket.id }
 
 io.on("connection", (socket) => {
-
   console.log("User connected:", socket.id);
 
+  /* JOIN ROOM */
   socket.on("joinRoom", (userId) => {
     onlineUsers[userId] = socket.id;
+    // broadcast updated online users
+    io.emit("updateUserStatus", Object.keys(onlineUsers));
+  });
+
+  /* CHAT MESSAGES */
+  socket.on("sendMessage", (msg) => {
+    const receiverSocket = onlineUsers[msg.receiver];
+    if (receiverSocket) {
+      io.to(receiverSocket).emit("receiveMessage", msg);
+    }
+  });
+
+  /* TYPING INDICATOR */
+  socket.on("typing", ({ receiver }) => {
+    const receiverSocket = onlineUsers[receiver];
+    if (receiverSocket) io.to(receiverSocket).emit("typing");
+  });
+
+  socket.on("stopTyping", ({ receiver }) => {
+    const receiverSocket = onlineUsers[receiver];
+    if (receiverSocket) io.to(receiverSocket).emit("stopTyping");
   });
 
   /* CALL REQUEST */
-
-  socket.on("callUser", ({ from, to }) => {
-
+  socket.on("callUser", ({ from, to, type }) => {
     const receiverSocket = onlineUsers[to];
-
-    if (receiverSocket) {
-      io.to(receiverSocket).emit("incomingCall", { from });
-    }
-
+    if (receiverSocket) io.to(receiverSocket).emit("incomingCall", { from, type });
   });
 
   /* CALL ACCEPTED */
-
   socket.on("acceptCall", ({ from, to }) => {
-
     const callerSocket = onlineUsers[to];
-
-    if (callerSocket) {
-      io.to(callerSocket).emit("callAccepted", { from });
-    }
-
+    if (callerSocket) io.to(callerSocket).emit("callAccepted", { from });
   });
 
   /* CALL REJECTED */
-
   socket.on("rejectCall", ({ to }) => {
-
     const callerSocket = onlineUsers[to];
-
-    if (callerSocket) {
-      io.to(callerSocket).emit("callRejected");
-    }
-
+    if (callerSocket) io.to(callerSocket).emit("callRejected");
   });
 
+  /* DISCONNECT */
   socket.on("disconnect", () => {
-
     console.log("User disconnected:", socket.id);
-
+    // remove user from online list
     onlineUsers = Object.fromEntries(
-      Object.entries(onlineUsers).filter(
-        ([k, v]) => v !== socket.id
-      )
+      Object.entries(onlineUsers).filter(([k, v]) => v !== socket.id)
     );
-
+    // broadcast updated online users
+    io.emit("updateUserStatus", Object.keys(onlineUsers));
   });
-
 });
 
 const PORT = process.env.PORT || 5000;
-
-server.listen(PORT, () => {
-  console.log("Server running on port", PORT);
-});
+server.listen(PORT, () => console.log("Server running on port", PORT));
