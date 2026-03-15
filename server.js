@@ -20,7 +20,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:3000",          // local React
-      "https://neavatalk.netlify.app/" // deployed frontend
+      "https://neavatalk.netlify.app" // deployed frontend
     ],
     credentials: true
   })
@@ -38,7 +38,7 @@ const io = new Server(server, {
   cors: {
     origin: [
       "http://localhost:3000",
-      "https://neavatalk.netlify.app/"
+      "https://neavatalk.netlify.app"
     ],
     methods: ["GET", "POST"],
     credentials: true
