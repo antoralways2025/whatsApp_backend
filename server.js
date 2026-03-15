@@ -12,77 +12,101 @@ const messageRoutes = require("./routes/messages");
 const app = express();
 const server = http.createServer(app);
 
-const io = new Server(server, {
-  cors: {
-    origin: "https://whatsapp-backend-87dn.onrender.com",
-    methods: ["GET","POST"]
-  }
-});
-
 connectDB();
 
-app.use(cors());
+/* CORS FOR EXPRESS */
+
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3000",          // local React
+      "https://neavatalk.netlify.app/" // deployed frontend
+    ],
+    credentials: true
+  })
+);
+
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
 
+/* SOCKET.IO */
+
+const io = new Server(server, {
+  cors: {
+    origin: [
+      "http://localhost:3000",
+      "https://neavatalk.netlify.app/"
+    ],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
 let onlineUsers = {};
 
-io.on("connection",(socket)=>{
+io.on("connection", (socket) => {
 
-  socket.on("joinRoom",(userId)=>{
+  console.log("User connected:", socket.id);
+
+  socket.on("joinRoom", (userId) => {
     onlineUsers[userId] = socket.id;
   });
 
-  // CALL REQUEST
-  socket.on("callUser",({from,to})=>{
+  /* CALL REQUEST */
+
+  socket.on("callUser", ({ from, to }) => {
 
     const receiverSocket = onlineUsers[to];
 
-    if(receiverSocket){
-      io.to(receiverSocket).emit("incomingCall",{
-        from
-      });
+    if (receiverSocket) {
+      io.to(receiverSocket).emit("incomingCall", { from });
     }
 
   });
 
-  // CALL ACCEPTED
-  socket.on("acceptCall",({from,to})=>{
+  /* CALL ACCEPTED */
+
+  socket.on("acceptCall", ({ from, to }) => {
 
     const callerSocket = onlineUsers[to];
 
-    if(callerSocket){
-      io.to(callerSocket).emit("callAccepted",{from});
+    if (callerSocket) {
+      io.to(callerSocket).emit("callAccepted", { from });
     }
 
   });
 
-  // CALL REJECTED
-  socket.on("rejectCall",({to})=>{
+  /* CALL REJECTED */
+
+  socket.on("rejectCall", ({ to }) => {
 
     const callerSocket = onlineUsers[to];
 
-    if(callerSocket){
+    if (callerSocket) {
       io.to(callerSocket).emit("callRejected");
     }
 
   });
 
-  socket.on("disconnect",()=>{
+  socket.on("disconnect", () => {
+
+    console.log("User disconnected:", socket.id);
 
     onlineUsers = Object.fromEntries(
-      Object.entries(onlineUsers).filter(([k,v])=>v!==socket.id)
+      Object.entries(onlineUsers).filter(
+        ([k, v]) => v !== socket.id
+      )
     );
 
   });
 
 });
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
-server.listen(PORT,()=>{
-  console.log("Server running on port",PORT);
+server.listen(PORT, () => {
+  console.log("Server running on port", PORT);
 });
