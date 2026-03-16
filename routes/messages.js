@@ -1,3 +1,7 @@
+const express = require("express");
+const router = express.Router();
+
+
 router.post("/voice",upload.single("audio"),async(req,res)=>{
 
 try{
