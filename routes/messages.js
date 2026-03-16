@@ -1,80 +1,25 @@
-const router = require("express").Router();
-const Message = require("../models/Message");
-const multer = require("multer");
-const cloudinary = require("../config/cloudinary");
+router.post("/voice",upload.single("audio"),async(req,res)=>{
 
-const upload = multer({ dest: "uploads/" });
+try{
 
-/* GET MESSAGES */
-
-router.get("/", async (req, res) => {
-
-  const { userId, contactId } = req.query;
-
-  try {
-
-    const messages = await Message.find({
-      $or: [
-        { sender: userId, receiver: contactId },
-        { sender: contactId, receiver: userId }
-      ]
-    }).sort({ createdAt: 1 });
-
-    res.json(messages);
-
-  } catch (err) {
-
-    res.status(500).json(err);
-
-  }
-
+const result = await cloudinary.uploader.upload(req.file.path,{
+resource_type:"video"
 });
 
-/* SEND TEXT MESSAGE */
-
-router.post("/", async (req, res) => {
-
-  try {
-
-    const message = new Message(req.body);
-
-    const saved = await message.save();
-
-    res.json(saved);
-
-  } catch (err) {
-
-    res.status(500).json(err);
-
-  }
-
+const message = new Message({
+sender:req.body.sender,
+receiver:req.body.receiver,
+audio:result.secure_url
 });
 
-/* FILE MESSAGE */
+const saved = await message.save();
 
-router.post("/file", upload.single("file"), async (req, res) => {
+res.json(saved);
 
-  try {
+}catch(err){
 
-    const result = await cloudinary.uploader.upload(req.file.path);
+res.status(500).json(err);
 
-    const message = new Message({
-      sender: req.body.sender,
-      receiver: req.body.receiver,
-      file: result.secure_url,
-      fileType: req.file.mimetype
-    });
-
-    const saved = await message.save();
-
-    res.json(saved);
-
-  } catch (err) {
-
-    res.status(500).json(err);
-
-  }
+}
 
 });
-
-module.exports = router;
